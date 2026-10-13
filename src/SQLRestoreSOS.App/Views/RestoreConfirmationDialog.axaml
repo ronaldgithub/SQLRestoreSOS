@@ -1,0 +1,30 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:vm="using:SQLRestoreSOS.App.ViewModels"
+        mc:Ignorable="d"
+        xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+        x:Class="SQLRestoreSOS.App.Views.RestoreConfirmationDialog"
+        x:DataType="vm:RestoreConfirmationDialogViewModel"
+        Width="460" SizeToContent="Height"
+        CanResize="False"
+        WindowStartupLocation="CenterOwner"
+        Title="Confirm Restore">
+
+    <StackPanel Margin="20" Spacing="12">
+        <Border Background="#402A1A1A" BorderBrush="OrangeRed" BorderThickness="1" CornerRadius="4" Padding="12">
+            <StackPanel Spacing="4">
+                <TextBlock Text="⚠ Destructive action" FontWeight="Bold" Foreground="OrangeRed" />
+                <TextBlock Text="{Binding WarningText}" TextWrapping="Wrap" />
+            </StackPanel>
+        </Border>
+
+        <TextBlock Text="{Binding SummaryText}" TextWrapping="Wrap" FontFamily="Consolas,Menlo,monospace" />
+
+        <CheckBox Content="I understand - proceed anyway" IsChecked="{Binding IsAcknowledged}" Margin="0,8,0,0" />
+
+        <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" Spacing="8" Margin="0,8,0,0">
+            <Button Content="Cancel" Command="{Binding CancelCommand}" />
+            <Button Content="Restore now" Command="{Binding ConfirmCommand}" Classes="accent" />
+        </StackPanel>
+    </StackPanel>
+</Window>

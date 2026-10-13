@@ -1,0 +1,52 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:vm="using:SQLRestoreSOS.App.ViewModels"
+        xmlns:conv="using:Avalonia.Data.Converters"
+        mc:Ignorable="d"
+        xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+        x:Class="SQLRestoreSOS.App.Views.ConnectDialog"
+        x:DataType="vm:ConnectDialogViewModel"
+        Width="420" SizeToContent="Height"
+        CanResize="False"
+        WindowStartupLocation="CenterOwner"
+        Title="Connect to SQL Server">
+
+    <StackPanel Margin="20" Spacing="10">
+        <TextBlock Text="Connect to SQL Server" FontSize="18" FontWeight="Bold" />
+
+        <TextBlock Text="Server name" Margin="0,8,0,0" />
+        <AutoCompleteBox Text="{Binding ServerName}"
+                          ItemsSource="{Binding RecentServers}"
+                          PlaceholderText="e.g. WIN10\SQLEXPRESS" />
+
+        <TextBlock Text="Authentication" Margin="0,8,0,0" />
+        <StackPanel Orientation="Horizontal" Spacing="16">
+            <RadioButton GroupName="Auth" Content="Windows Authentication" IsChecked="{Binding IsWindowsAuth}" />
+            <RadioButton GroupName="Auth" Content="SQL Server Login"
+                         IsChecked="{Binding IsWindowsAuth, Converter={x:Static conv:BoolConverters.Not}}" />
+        </StackPanel>
+
+        <StackPanel IsVisible="{Binding !IsWindowsAuth}" Spacing="6">
+            <TextBlock Text="Login" />
+            <TextBox Text="{Binding UserName}" />
+            <TextBlock Text="Password" />
+            <TextBox Text="{Binding Password}" PasswordChar="*" />
+        </StackPanel>
+
+        <Button Content="Test Connection" Command="{Binding TestConnectionCommand}" Margin="0,8,0,0"
+                IsEnabled="{Binding !IsTesting}" />
+        <TextBlock Text="{Binding TestResultMessage}" TextWrapping="Wrap"
+                   IsVisible="{Binding TestResultMessage, Converter={x:Static conv:StringConverters.IsNotNullOrEmpty}}">
+            <TextBlock.Styles>
+                <Style Selector="TextBlock">
+                    <Setter Property="Foreground" Value="Orange" />
+                </Style>
+            </TextBlock.Styles>
+        </TextBlock>
+
+        <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" Spacing="8" Margin="0,16,0,0">
+            <Button Content="Cancel" Command="{Binding CancelCommand}" />
+            <Button Content="Connect" Command="{Binding ConnectCommand}" Classes="accent" />
+        </StackPanel>
+    </StackPanel>
+</Window>

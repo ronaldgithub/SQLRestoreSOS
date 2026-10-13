@@ -1,0 +1,108 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="using:SQLRestoreSOS.App.ViewModels"
+             xmlns:bc="using:SQLRestoreSOS.Core.BackupChain"
+             xmlns:conv="using:Avalonia.Data.Converters"
+             mc:Ignorable="d"
+             xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+             x:Class="SQLRestoreSOS.App.Views.BasicRestoreView"
+             x:DataType="vm:MainWindowViewModel">
+
+    <ScrollViewer>
+        <StackPanel Margin="16" Spacing="10" MaxWidth="700">
+
+            <TextBlock Text="Database" FontWeight="Bold" />
+            <ComboBox ItemsSource="{Binding Databases}" SelectedItem="{Binding SelectedDatabase}"
+                      HorizontalAlignment="Stretch">
+                <ComboBox.ItemTemplate>
+                    <DataTemplate>
+                        <TextBlock Text="{Binding Name}" />
+                    </DataTemplate>
+                </ComboBox.ItemTemplate>
+            </ComboBox>
+
+            <TextBlock Text="Restore as (target database name)" FontWeight="Bold" Margin="0,8,0,0" />
+            <TextBox Text="{Binding TargetDatabaseName}" />
+
+            <TextBlock Text="Backup root (Ola Hallengren share - Full/Diff/Log are derived automatically)"
+                       FontWeight="Bold" Margin="0,8,0,0" />
+            <Grid ColumnDefinitions="*,Auto" ColumnSpacing="8">
+                <TextBox Grid.Column="0" Text="{Binding BackupRootPath}" PlaceholderText="e.g. \\192.168.178.15\SQLBackup" />
+                <Button Grid.Column="1" Content="Browse..." Name="BrowseRootButton" />
+            </Grid>
+
+            <TextBlock Text="Backup folders (auto-filled from the root above; edit if your layout differs)"
+                       FontWeight="Bold" Margin="0,8,0,0" />
+            <Grid ColumnDefinitions="Auto,*,Auto" RowDefinitions="Auto,Auto,Auto" RowSpacing="4" ColumnSpacing="8">
+                <TextBlock Grid.Row="0" Grid.Column="0" Text="Full" VerticalAlignment="Center" />
+                <TextBox Grid.Row="0" Grid.Column="1" Text="{Binding BackupPathFull}" PlaceholderText="e.g. D:\Backups\Orders\FULL\" />
+                <Button Grid.Row="0" Grid.Column="2" Content="Browse..." Name="BrowseFullButton" />
+
+                <TextBlock Grid.Row="1" Grid.Column="0" Text="Diff" VerticalAlignment="Center" />
+                <TextBox Grid.Row="1" Grid.Column="1" Text="{Binding BackupPathDiff}" PlaceholderText="optional" />
+                <Button Grid.Row="1" Grid.Column="2" Content="Browse..." Name="BrowseDiffButton" />
+
+                <TextBlock Grid.Row="2" Grid.Column="0" Text="Log" VerticalAlignment="Center" />
+                <TextBox Grid.Row="2" Grid.Column="1" Text="{Binding BackupPathLog}" PlaceholderText="optional" />
+                <Button Grid.Row="2" Grid.Column="2" Content="Browse..." Name="BrowseLogButton" />
+            </Grid>
+
+            <Border IsVisible="{Binding MappedDriveWarning, Converter={x:Static conv:StringConverters.IsNotNullOrEmpty}}"
+                    Background="#402A1A1A" BorderBrush="Orange" BorderThickness="1" CornerRadius="4" Padding="10" Margin="0,4,0,0">
+                <TextBlock Text="{Binding MappedDriveWarning}" TextWrapping="Wrap" Foreground="Orange" />
+            </Border>
+
+            <Button Content="Discover backup chain" Command="{Binding DiscoverChainCommand}" Margin="0,4,0,0" />
+
+            <TextBlock Text="Backup chain" FontWeight="Bold" Margin="0,8,0,0"
+                       IsVisible="{Binding Chain, Converter={x:Static ObjectConverters.IsNotNull}}" />
+            <ItemsControl ItemsSource="{Binding Chain.Entries}">
+                <ItemsControl.ItemTemplate>
+                    <DataTemplate DataType="bc:BackupFileEntry">
+                        <Grid ColumnDefinitions="Auto,Auto,*,Auto" Margin="0,2" ColumnSpacing="8">
+                            <TextBlock Grid.Column="0" Text="{Binding Type}" Width="70" />
+                            <TextBlock Grid.Column="1" Text="{Binding BackupFinishDate, StringFormat='{}{0:u}'}" Width="180" />
+                            <TextBlock Grid.Column="2" Text="{Binding FilePath}" TextTrimming="CharacterEllipsis" />
+                            <Button Grid.Column="3" Content="Preview files"
+                                    Command="{Binding $parent[ItemsControl].((vm:MainWindowViewModel)DataContext).PreviewFilesCommand}"
+                                    CommandParameter="{Binding FilePath}" />
+                        </Grid>
+                    </DataTemplate>
+                </ItemsControl.ItemTemplate>
+            </ItemsControl>
+
+            <TextBlock Text="Point in time (leave blank for latest)" FontWeight="Bold" Margin="0,8,0,0" />
+            <DatePicker SelectedDate="{Binding SelectedPointInTimeUtc}" />
+
+            <TextBlock Text="If the target database already exists" FontWeight="Bold" Margin="0,8,0,0" />
+            <ComboBox ItemsSource="{x:Static vm:MainWindowViewModel.ExistingDbActionOptions}"
+                      SelectedItem="{Binding SelectedExistingDbAction}">
+                <ComboBox.ItemTemplate>
+                    <DataTemplate>
+                        <TextBlock Text="{Binding Label}" />
+                    </DataTemplate>
+                </ComboBox.ItemTemplate>
+            </ComboBox>
+
+            <CheckBox Content="Run DBCC CHECKDB after restore" IsChecked="{Binding RunCheckDbAfterRestore}" Margin="0,8,0,0" />
+            <CheckBox Content="Relocate data/log files to different drives" IsChecked="{Binding MoveFiles}" />
+            <Grid ColumnDefinitions="Auto,*" RowDefinitions="Auto,Auto" RowSpacing="4" ColumnSpacing="8"
+                  IsVisible="{Binding MoveFiles}" Margin="20,4,0,0">
+                <TextBlock Grid.Row="0" Grid.Column="0" Text="Data drive" VerticalAlignment="Center" />
+                <TextBox Grid.Row="0" Grid.Column="1" Text="{Binding MoveDataDrive}" />
+                <TextBlock Grid.Row="1" Grid.Column="0" Text="Log drive" VerticalAlignment="Center" />
+                <TextBox Grid.Row="1" Grid.Column="1" Text="{Binding MoveLogDrive}" />
+            </Grid>
+
+            <CheckBox Content="Log shipping mode (stay in NORECOVERY so more log backups can be applied later)"
+                      IsChecked="{Binding IsLogShippingMode}" Margin="0,8,0,0" />
+            <StackPanel Orientation="Horizontal" Spacing="8" IsVisible="{Binding IsLogShippingMode}" Margin="20,4,0,0">
+                <Button Content="Check for new log backups" Command="{Binding CheckForNewLogsCommand}" />
+                <Button Content="Finalize (bring online)" Command="{Binding FinalizeLogShippingCommand}" />
+            </StackPanel>
+
+            <Button Content="Run Restore" Command="{Binding RunRestoreCommand}" Classes="accent"
+                    HorizontalAlignment="Left" Margin="0,16,0,0" Padding="20,8" />
+        </StackPanel>
+    </ScrollViewer>
+</UserControl>

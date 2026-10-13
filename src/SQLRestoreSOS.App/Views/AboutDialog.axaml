@@ -1,0 +1,43 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:vm="using:SQLRestoreSOS.App.ViewModels"
+        mc:Ignorable="d"
+        xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+        x:Class="SQLRestoreSOS.App.Views.AboutDialog"
+        x:DataType="vm:AboutDialogViewModel"
+        Title="About SQLRestoreSOS"
+        Width="380" SizeToContent="Height" CanResize="False"
+        WindowStartupLocation="CenterOwner"
+        Icon="/Assets/app.ico">
+
+    <StackPanel Margin="24" Spacing="4">
+        <Image Source="/Assets/app.ico" Width="64" Height="64" HorizontalAlignment="Center" Margin="0,0,0,8" />
+        <TextBlock Text="{Binding AppName}" FontSize="18" FontWeight="Bold" HorizontalAlignment="Center" />
+        <TextBlock Text="{Binding Version}" FontSize="12" Opacity="0.7" HorizontalAlignment="Center" Margin="0,0,0,12" />
+
+        <TextBlock Text="{Binding Description}" TextWrapping="Wrap" TextAlignment="Center" Opacity="0.85" Margin="0,0,0,16" />
+
+        <TextBlock Text="{Binding LicenseSummary}" TextWrapping="Wrap" TextAlignment="Center" FontSize="12" />
+        <TextBlock Text="{Binding DatabaseRestoreAttribution}" TextWrapping="Wrap" TextAlignment="Center" FontSize="12" Opacity="0.8" Margin="0,4,0,0" />
+        <TextBlock Text="{Binding RestoreGeneAttribution}" TextWrapping="Wrap" TextAlignment="Center" FontSize="12" Opacity="0.8" FontStyle="Italic" Margin="0,4,0,0" />
+
+        <Button Content="{Binding Email}" Command="{Binding OpenEmailCommand}" Classes="link" HorizontalAlignment="Center" Margin="0,16,0,0" />
+        <Button Content="{Binding WebsiteCom}" Command="{Binding OpenWebsiteComCommand}" Classes="link" HorizontalAlignment="Center" Margin="0,4,0,0" />
+        <Button Content="{Binding WebsiteNl}" Command="{Binding OpenWebsiteNlCommand}" Classes="link" HorizontalAlignment="Center" Margin="0,4,0,0" />
+
+        <Button Content="Close" Command="{Binding CloseCommand}" HorizontalAlignment="Center" Margin="0,20,0,0" Width="90" />
+    </StackPanel>
+
+    <Window.Styles>
+        <Style Selector="Button.link">
+            <Setter Property="Background" Value="Transparent" />
+            <Setter Property="BorderThickness" Value="0" />
+            <Setter Property="Foreground" Value="#4EA1F7" />
+            <Setter Property="Cursor" Value="Hand" />
+            <Setter Property="Padding" Value="0" />
+        </Style>
+        <Style Selector="Button.link:pointerover /template/ ContentPresenter">
+            <Setter Property="TextBlock.TextDecorations" Value="Underline" />
+        </Style>
+    </Window.Styles>
+</Window>

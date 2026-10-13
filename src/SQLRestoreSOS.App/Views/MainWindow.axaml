@@ -1,0 +1,71 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:vm="using:SQLRestoreSOS.App.ViewModels"
+        xmlns:views="using:SQLRestoreSOS.App.Views"
+        xmlns:settings="using:SQLRestoreSOS.Core.Settings"
+        xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+        xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+        mc:Ignorable="d" d:DesignWidth="1300" d:DesignHeight="980"
+        x:Class="SQLRestoreSOS.App.Views.MainWindow"
+        x:DataType="vm:MainWindowViewModel"
+        Icon="/Assets/app.ico"
+        Title="SQLRestoreSOS"
+        Width="1300" Height="980"
+        MinWidth="1000" MinHeight="700"
+        WindowStartupLocation="CenterScreen">
+
+    <Design.DataContext>
+        <vm:MainWindowViewModel />
+    </Design.DataContext>
+
+    <DockPanel>
+        <!-- Toolbar -->
+        <Grid DockPanel.Dock="Top" ColumnDefinitions="Auto,Auto,*,Auto,Auto" Margin="10" ColumnSpacing="8">
+            <Button Grid.Column="0" Content="Connect..." Command="{Binding ConnectCommand}" />
+            <TextBlock Grid.Column="1" Text="{Binding ConnectionStatusText}" VerticalAlignment="Center" Margin="4,0" />
+
+            <Menu Grid.Column="3" VerticalAlignment="Center">
+                <MenuItem Header="{Binding EngineMenuHeader}">
+                    <MenuItem Header="sp__DatabaseRestore (default)" Command="{Binding SwitchEngineCommand}"
+                              CommandParameter="{x:Static settings:RestoreEngineKind.DatabaseRestore}" />
+                    <MenuItem Header="sp__RestoreGene (optional)" Command="{Binding SwitchEngineCommand}"
+                              CommandParameter="{x:Static settings:RestoreEngineKind.RestoreGene}" />
+                </MenuItem>
+            </Menu>
+
+            <Button Grid.Column="4" Content="About" Command="{Binding ShowAboutCommand}" />
+        </Grid>
+
+        <!-- Full-height left/right split: left = input form, right = plan summary / full script / progress -->
+        <Grid ColumnDefinitions="*,*" Margin="10,0,10,10">
+            <Border Grid.Column="0" BorderBrush="Gray" BorderThickness="1" CornerRadius="4" Margin="0,0,5,0">
+                <TabControl>
+                    <TabItem Header="Basic">
+                        <views:BasicRestoreView />
+                    </TabItem>
+                    <TabItem Header="Advanced">
+                        <views:AdvancedRestoreView />
+                    </TabItem>
+                </TabControl>
+            </Border>
+
+            <Grid Grid.Column="1" RowDefinitions="Auto,2*,1*" Margin="5,0,0,0">
+                <Border Grid.Row="0" BorderBrush="Gray" BorderThickness="1" CornerRadius="4" Margin="0,0,0,5" Padding="12">
+                    <StackPanel Spacing="4">
+                        <TextBlock Text="Plan" FontWeight="Bold" />
+                        <TextBlock Text="{Binding PlanSummaryLine1}" TextWrapping="Wrap" />
+                        <TextBlock Text="{Binding PlanSummaryLine2}" TextWrapping="Wrap" Opacity="0.8" />
+                    </StackPanel>
+                </Border>
+
+                <Border Grid.Row="1" BorderBrush="Gray" BorderThickness="1" CornerRadius="4" Margin="0,0,0,5">
+                    <views:SqlPreviewPane />
+                </Border>
+
+                <Border Grid.Row="2" BorderBrush="Gray" BorderThickness="1" CornerRadius="4">
+                    <views:ProgressLogPanel />
+                </Border>
+            </Grid>
+        </Grid>
+    </DockPanel>
+</Window>

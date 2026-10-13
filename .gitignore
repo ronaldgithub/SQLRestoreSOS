@@ -1,0 +1,28 @@
+## .NET build output
+bin/
+obj/
+out/
+
+## Visual Studio / Rider / VS Code
+.vs/
+.idea/
+*.user
+*.suo
+
+## Avalonia / XAML designer cache
+*.axaml.cs.bak
+
+## Publish output
+publish/
+
+## Logs (local runtime output, not source)
+logs/*.log
+logs/*.jsonl
+!logs/.gitkeep
+
+## Third-party script with no clear redistribution license - see docs/restoregene-engine.md
+scripts/sp_RestoreGene.sql
+
+## OS cruft
+Thumbs.db
+.DS_Store

@@ -1,0 +1,33 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="using:SQLRestoreSOS.App.ViewModels"
+             xmlns:restore="using:SQLRestoreSOS.Core.Restore"
+             mc:Ignorable="d"
+             xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+             x:Class="SQLRestoreSOS.App.Views.ProgressLogPanel"
+             x:DataType="vm:MainWindowViewModel">
+
+    <UserControl.DataTemplates>
+        <DataTemplate DataType="restore:RestoreProgressEvent">
+            <TextBlock Text="{Binding Message}" TextWrapping="Wrap" Margin="0,1">
+                <TextBlock.Styles>
+                    <Style Selector="TextBlock">
+                        <Setter Property="Foreground" Value="{Binding Severity, Converter={x:Static vm:SeverityToBrushConverter.Instance}}" />
+                    </Style>
+                </TextBlock.Styles>
+            </TextBlock>
+        </DataTemplate>
+    </UserControl.DataTemplates>
+
+    <DockPanel>
+        <Grid DockPanel.Dock="Top" ColumnDefinitions="*,Auto" Margin="8,4">
+            <TextBlock Grid.Column="0" Text="Progress" FontWeight="Bold" VerticalAlignment="Center" />
+            <TextBlock Grid.Column="1" Text="{Binding PercentComplete, StringFormat='{}{0:0.0}%'}"
+                       IsVisible="{Binding PercentComplete, Converter={x:Static ObjectConverters.IsNotNull}}" />
+        </Grid>
+        <ProgressBar DockPanel.Dock="Top" Value="{Binding PercentComplete}" Minimum="0" Maximum="100" Height="6" Margin="8,0" />
+        <ScrollViewer>
+            <ItemsControl ItemsSource="{Binding ProgressLog}" Margin="8" FontFamily="Consolas,Menlo,monospace" />
+        </ScrollViewer>
+    </DockPanel>
+</UserControl>

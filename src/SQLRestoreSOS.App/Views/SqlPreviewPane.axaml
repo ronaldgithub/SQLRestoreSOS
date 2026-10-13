@@ -1,0 +1,43 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="using:SQLRestoreSOS.App.ViewModels"
+             xmlns:conv="using:Avalonia.Data.Converters"
+             mc:Ignorable="d"
+             xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+             x:Class="SQLRestoreSOS.App.Views.SqlPreviewPane"
+             x:DataType="vm:MainWindowViewModel">
+
+    <Grid RowDefinitions="Auto,1*,Auto,2*">
+        <Grid Grid.Row="0" ColumnDefinitions="*,Auto,Auto" Margin="8,4">
+            <TextBlock Grid.Column="0" Text="Generated T-SQL" FontWeight="Bold" VerticalAlignment="Center" />
+            <Button Grid.Column="1" Content="Dry Run (-WhatIf)" Name="DryRunButton"
+                    IsEnabled="{Binding !IsResolvingStatements}" Margin="0,0,8,0"
+                    ToolTip.Tip="Connects to the server and resolves the actual RESTORE DATABASE/RESTORE LOG statements - makes no changes." />
+            <Button Grid.Column="2" Content="Copy" Name="CopyButton" />
+        </Grid>
+
+        <TextBox Grid.Row="1" Text="{Binding SqlPreviewText, Mode=OneWay}"
+                 IsReadOnly="True" AcceptsReturn="True" TextWrapping="NoWrap"
+                 FontFamily="Consolas,Menlo,monospace"
+                 VerticalContentAlignment="Top"
+                 Background="#161616" />
+
+        <Grid Grid.Row="2" ColumnDefinitions="*,Auto" Margin="8,8,8,4">
+            <StackPanel Grid.Column="0" Orientation="Horizontal" VerticalAlignment="Center" Spacing="6">
+                <TextBlock Text="Actual statements that will run" FontWeight="Bold" />
+                <TextBlock Text="(resolving...)" Opacity="0.7" IsVisible="{Binding IsResolvingStatements}" />
+                <TextBlock Text="{Binding ResolvedStatementCount, StringFormat='{}{0} statement(s) resolved'}" Opacity="0.7"
+                           IsVisible="{Binding ResolvedStatementsText, Converter={x:Static conv:StringConverters.IsNotNullOrEmpty}}" />
+            </StackPanel>
+            <Button Grid.Column="1" Content="Copy" Name="CopyResolvedButton"
+                    IsVisible="{Binding ResolvedStatementsText, Converter={x:Static conv:StringConverters.IsNotNullOrEmpty}}" />
+        </Grid>
+
+        <TextBox Grid.Row="3" Name="ResolvedStatementsTextBox" Text="{Binding ResolvedStatementsText, Mode=OneWay}"
+                 IsReadOnly="True" AcceptsReturn="True" TextWrapping="NoWrap"
+                 FontFamily="Consolas,Menlo,monospace"
+                 VerticalContentAlignment="Top"
+                 PlaceholderText="Click &quot;Dry Run (-WhatIf)&quot; to see the real RESTORE DATABASE / RESTORE LOG statements the server would execute - nothing runs until you click Run Restore."
+                 Background="#161616" />
+    </Grid>
+</UserControl>

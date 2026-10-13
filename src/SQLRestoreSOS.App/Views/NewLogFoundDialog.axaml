@@ -1,0 +1,30 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:vm="using:SQLRestoreSOS.App.ViewModels"
+        mc:Ignorable="d"
+        xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+        x:Class="SQLRestoreSOS.App.Views.NewLogFoundDialog"
+        x:DataType="vm:NewLogFoundDialogViewModel"
+        Width="440" SizeToContent="Height"
+        CanResize="False"
+        WindowStartupLocation="CenterOwner"
+        Title="New Log Backup Found">
+
+    <StackPanel Margin="20" Spacing="10">
+        <TextBlock Text="New log backup found" FontSize="16" FontWeight="Bold" />
+        <TextBlock TextWrapping="Wrap">
+            <Run Text="A new transaction log backup was found for" />
+            <Run Text="{Binding DatabaseName}" FontWeight="Bold" />
+            <Run Text=":" />
+        </TextBlock>
+        <TextBlock Text="{Binding LogFilePath}" FontFamily="Consolas,Menlo,monospace" TextWrapping="Wrap" />
+        <TextBlock Text="{Binding BackupFinishDateUtc, StringFormat='Taken at {0:u}'}" Opacity="0.8" />
+        <TextBlock TextWrapping="Wrap" Margin="0,8,0,0"
+                   Text="Applying it keeps the database in NORECOVERY so log shipping can continue. You can finalize (bring it online) at any time." />
+
+        <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" Spacing="8" Margin="0,16,0,0">
+            <Button Content="Skip for now" Command="{Binding SkipCommand}" />
+            <Button Content="Apply (stay in NORECOVERY)" Command="{Binding ApplyCommand}" Classes="accent" />
+        </StackPanel>
+    </StackPanel>
+</Window>

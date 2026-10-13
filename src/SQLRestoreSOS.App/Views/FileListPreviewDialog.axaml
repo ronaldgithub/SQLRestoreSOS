@@ -1,0 +1,44 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:vm="using:SQLRestoreSOS.App.ViewModels"
+        xmlns:bc="using:SQLRestoreSOS.Core.BackupChain"
+        mc:Ignorable="d"
+        xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+        x:Class="SQLRestoreSOS.App.Views.FileListPreviewDialog"
+        x:DataType="vm:FileListPreviewDialogViewModel"
+        Width="640" Height="420"
+        WindowStartupLocation="CenterOwner"
+        Title="Backup File List">
+
+    <DockPanel Margin="16">
+        <TextBlock DockPanel.Dock="Top" Text="{Binding BackupFilePath}" FontFamily="Consolas,Menlo,monospace"
+                   TextWrapping="Wrap" Margin="0,0,0,8" />
+
+        <Button DockPanel.Dock="Bottom" Content="Close" Command="{Binding CloseCommand}"
+                HorizontalAlignment="Right" Margin="0,8,0,0" />
+
+        <Grid DockPanel.Dock="Top" ColumnDefinitions="2*,2*,Auto,1.2*,Auto,Auto" Margin="0,0,0,4">
+            <TextBlock Grid.Column="0" Text="Logical Name" FontWeight="Bold" />
+            <TextBlock Grid.Column="1" Text="Physical Name" FontWeight="Bold" />
+            <TextBlock Grid.Column="2" Text="Type" FontWeight="Bold" Margin="8,0" />
+            <TextBlock Grid.Column="3" Text="Filegroup" FontWeight="Bold" />
+            <TextBlock Grid.Column="4" Text="Size" FontWeight="Bold" Margin="8,0" />
+        </Grid>
+
+        <ScrollViewer>
+            <ItemsControl ItemsSource="{Binding Files}">
+                <ItemsControl.ItemTemplate>
+                    <DataTemplate DataType="bc:BackupFileListEntry">
+                        <Grid ColumnDefinitions="2*,2*,Auto,1.2*,Auto,Auto" Margin="0,2">
+                            <TextBlock Grid.Column="0" Text="{Binding LogicalName}" />
+                            <TextBlock Grid.Column="1" Text="{Binding PhysicalName}" TextTrimming="CharacterEllipsis" />
+                            <TextBlock Grid.Column="2" Text="{Binding Type}" Margin="8,0" />
+                            <TextBlock Grid.Column="3" Text="{Binding FileGroupName}" />
+                            <TextBlock Grid.Column="4" Text="{Binding Size}" Margin="8,0" />
+                        </Grid>
+                    </DataTemplate>
+                </ItemsControl.ItemTemplate>
+            </ItemsControl>
+        </ScrollViewer>
+    </DockPanel>
+</Window>
