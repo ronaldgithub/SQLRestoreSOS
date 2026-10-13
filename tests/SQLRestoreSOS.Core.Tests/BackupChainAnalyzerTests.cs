@@ -152,4 +152,16 @@ public class BackupRestorePlannerTests
 
         Assert.Equal([Full, Diff, Log3], plan.Steps.ToArray());
     }
+
+    [Fact]
+    public void LogTakenRightAfterDiff_WithLastLsnAtOrBelowDiff_IsStillApplied()
+    {
+        // Idle database: the log taken seconds after the diff ends at the diff's own end LSN.
+        var logAfterDiff = Entry("logAfterDiff", BackupType.Log, 66, 67, 300, 410);
+        var laterLog = Entry("later", BackupType.Log, 90, 90, 410, 600);
+
+        var plan = BackupRestorePlanner.Plan(Rows(Full, Log1, Log2, Diff, logAfterDiff, laterLog), T0.AddMinutes(90));
+
+        Assert.Equal([Full, Diff, logAfterDiff, laterLog], plan.Steps.ToArray());
+    }
 }

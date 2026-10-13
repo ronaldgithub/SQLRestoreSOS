@@ -135,8 +135,8 @@ public partial class BackupTimelineDialogViewModel : ViewModelBase
         {
             var axisStart = _analyzed.Min(r => r.Entry.BackupStartDate);
             var axisEnd = _analyzed.Max(r => r.Entry.BackupFinishDate);
-            AxisStartText = axisStart.ToString("yyyy-MM-dd HH:mm");
-            AxisEndText = axisEnd.ToString("yyyy-MM-dd HH:mm");
+            AxisStartText = axisStart.ToString("MM-dd HH:mm");
+            AxisEndText = axisEnd.ToString("MM-dd HH:mm");
 
             foreach (var row in _analyzed)
             {

@@ -42,10 +42,14 @@ public static class BackupRestorePlanner
             steps.Add(diff);
         }
 
-        var endLsn = (diff ?? baseFull).LastLsn;
+        // Logs after the last full/diff. The LSN test alone misses a log taken right after a diff on an
+        // idle database (its LastLsn can equal the diff's), which sp_DatabaseRestore does still apply -
+        // it selects logs by backup time - so a log finished after the base counts too.
+        var basis = diff ?? baseFull;
 
         foreach (var log in restorable
-                     .Where(e => e.Type == BackupType.Log && e.LastLsn > endLsn)
+                     .Where(e => e.Type == BackupType.Log
+                                 && (e.LastLsn >= basis.LastLsn || e.BackupFinishDate > basis.BackupFinishDate))
                      .OrderBy(e => e.FirstLsn))
         {
             steps.Add(log);
