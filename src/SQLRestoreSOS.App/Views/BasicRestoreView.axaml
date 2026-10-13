@@ -8,6 +8,13 @@
              x:Class="SQLRestoreSOS.App.Views.BasicRestoreView"
              x:DataType="vm:MainWindowViewModel">
 
+    <DockPanel>
+        <!-- Pinned: always visible, however long the form above grows -->
+        <Border DockPanel.Dock="Bottom" Padding="16,10" BorderBrush="Gray" BorderThickness="0,1,0,0">
+            <Button Content="Run Restore" Command="{Binding RunRestoreCommand}" Classes="accent"
+                    HorizontalAlignment="Left" Padding="20,8" />
+        </Border>
+
     <ScrollViewer>
         <StackPanel Margin="16" Spacing="10" MaxWidth="700">
 
@@ -52,25 +59,6 @@
                 <TextBlock Text="{Binding MappedDriveWarning}" TextWrapping="Wrap" Foreground="Orange" />
             </Border>
 
-            <Button Content="Discover backup chain" Command="{Binding DiscoverChainCommand}" Margin="0,4,0,0" />
-
-            <TextBlock Text="Backup chain" FontWeight="Bold" Margin="0,8,0,0"
-                       IsVisible="{Binding Chain, Converter={x:Static ObjectConverters.IsNotNull}}" />
-            <ItemsControl ItemsSource="{Binding Chain.Entries}">
-                <ItemsControl.ItemTemplate>
-                    <DataTemplate DataType="bc:BackupFileEntry">
-                        <Grid ColumnDefinitions="Auto,Auto,*,Auto" Margin="0,2" ColumnSpacing="8">
-                            <TextBlock Grid.Column="0" Text="{Binding Type}" Width="70" />
-                            <TextBlock Grid.Column="1" Text="{Binding BackupFinishDate, StringFormat='{}{0:u}'}" Width="180" />
-                            <TextBlock Grid.Column="2" Text="{Binding FilePath}" TextTrimming="CharacterEllipsis" />
-                            <Button Grid.Column="3" Content="Preview files"
-                                    Command="{Binding $parent[ItemsControl].((vm:MainWindowViewModel)DataContext).PreviewFilesCommand}"
-                                    CommandParameter="{Binding FilePath}" />
-                        </Grid>
-                    </DataTemplate>
-                </ItemsControl.ItemTemplate>
-            </ItemsControl>
-
             <TextBlock Text="Point in time (server time)" FontWeight="Bold" Margin="0,8,0,0" />
             <StackPanel Orientation="Horizontal" Spacing="8">
                 <TextBlock Text="{Binding PointInTimeDisplay}" VerticalAlignment="Center" MinWidth="200" />
@@ -104,9 +92,16 @@
                 <Button Content="Check for new log backups" Command="{Binding CheckForNewLogsCommand}" />
                 <Button Content="Finalize (bring online)" Command="{Binding FinalizeLogShippingCommand}" />
             </StackPanel>
+            <StackPanel Orientation="Horizontal" Spacing="8" IsVisible="{Binding IsLogShippingMode}" Margin="20,4,0,0">
+                <CheckBox Content="Auto-check every" IsChecked="{Binding IsAutoPolling}" />
+                <NumericUpDown Value="{Binding PollIntervalSeconds}" Minimum="10" Maximum="3600" Increment="10"
+                               FormatString="0" Width="130" />
+                <TextBlock Text="seconds (you are asked before each log is applied)" VerticalAlignment="Center" Opacity="0.7" />
+            </StackPanel>
+            <TextBlock Text="{Binding LogShippingStatus}" TextWrapping="Wrap" Margin="20,2,0,0"
+                       IsVisible="{Binding IsLogShippingMode}" />
 
-            <Button Content="Run Restore" Command="{Binding RunRestoreCommand}" Classes="accent"
-                    HorizontalAlignment="Left" Margin="0,16,0,0" Padding="20,8" />
         </StackPanel>
     </ScrollViewer>
+    </DockPanel>
 </UserControl>

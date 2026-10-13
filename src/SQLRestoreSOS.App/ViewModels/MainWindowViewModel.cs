@@ -31,6 +31,8 @@ public partial class MainWindowViewModel : ViewModelBase
     private IRestoreEngine? _engine;
     private RestoreParameterSet? _parameters;
     private LogShippingSession? _logShippingSession;
+    private LogShippingMonitor? _logShippingMonitor;
+    private readonly SemaphoreSlim _logShipGate = new(1, 1);
 
     public AppSettings Settings { get; private set; }
 
@@ -95,6 +97,11 @@ public partial class MainWindowViewModel : ViewModelBase
     [ObservableProperty] private string _moveLogDrive = string.Empty;
     [ObservableProperty] private bool _isLogShippingMode;
 
+    /// <summary>Log shipping: poll the log folder on a timer; the DBA is still asked before each log is applied.</summary>
+    [ObservableProperty] private bool _isAutoPolling;
+    [ObservableProperty] private decimal? _pollIntervalSeconds = 60;
+    [ObservableProperty] private string _logShippingStatus = string.Empty;
+
     [ObservableProperty] private string _sqlPreviewText = string.Empty;
 
     /// <summary>Two-line at-a-glance summary shown above the full generated script.</summary>
@@ -121,7 +128,6 @@ public partial class MainWindowViewModel : ViewModelBase
     public Func<AboutDialogViewModel, Task>? ShowAboutDialog { get; set; }
     public Func<RestoreConfirmationDialogViewModel, Task<bool>>? ShowConfirmationDialog { get; set; }
     public Func<NewLogFoundDialogViewModel, Task<bool>>? ShowNewLogFoundDialog { get; set; }
-    public Func<FileListPreviewDialogViewModel, Task>? ShowFileListDialog { get; set; }
     public Func<BackupTimelineDialogViewModel, Task>? ShowBackupTimelineDialog { get; set; }
     public Action<string>? ShowError { get; set; }
 
@@ -201,6 +207,14 @@ public partial class MainWindowViewModel : ViewModelBase
     partial void OnMoveDataDriveChanged(string value) => RefreshPreview();
     partial void OnMoveLogDriveChanged(string value) => RefreshPreview();
     partial void OnIsLogShippingModeChanged(bool value) => RefreshPreview();
+    partial void OnIsAutoPollingChanged(bool value) => UpdatePolling();
+    partial void OnPollIntervalSecondsChanged(decimal? value)
+    {
+        if (IsAutoPolling)
+        {
+            UpdatePolling();
+        }
+    }
     partial void OnTargetDatabaseNameChanged(string value) => RefreshPreview();
 
     private void ApplyEngineFromSettings()
@@ -342,11 +356,11 @@ public partial class MainWindowViewModel : ViewModelBase
         }
     }
 
-    [RelayCommand]
     private async Task DiscoverChainAsync()
     {
         if (_activeConnection is null || SelectedDatabase is null || string.IsNullOrWhiteSpace(BackupPathFull))
         {
+            ShowError?.Invoke("Connect, pick a database and enter the Full backup folder first.");
             return;
         }
 
@@ -400,9 +414,9 @@ public partial class MainWindowViewModel : ViewModelBase
         }
     }
 
-    /// <summary>Re-opens the timeline dialog on the already-discovered chain to (re)choose the point in time.</summary>
+    /// <summary>Scans the backup folders and opens the timeline dialog to choose the point in time.</summary>
     [RelayCommand]
-    private Task ChoosePointInTimeAsync() => ShowTimelineAsync();
+    private Task ChoosePointInTimeAsync() => DiscoverChainAsync();
 
     [RelayCommand]
     private void ClearPointInTime() => SelectedPointInTimeUtc = null;
@@ -427,34 +441,6 @@ public partial class MainWindowViewModel : ViewModelBase
     public string PointInTimeDisplay => SelectedPointInTimeUtc is { } p
         ? p.ToString("yyyy-MM-dd HH:mm:ss")
         : "Latest available (no STOPAT)";
-
-    [RelayCommand]
-    private async Task PreviewFilesAsync(string? backupFilePath)
-    {
-        if (_activeConnection is null || string.IsNullOrWhiteSpace(backupFilePath))
-        {
-            return;
-        }
-
-        try
-        {
-            var files = await _fileInspector.GetFileListAsync(_activeConnection, backupFilePath);
-            var vm = new FileListPreviewDialogViewModel { BackupFilePath = backupFilePath };
-            foreach (var f in files)
-            {
-                vm.Files.Add(f);
-            }
-
-            if (ShowFileListDialog is not null)
-            {
-                await ShowFileListDialog(vm);
-            }
-        }
-        catch (Exception ex) when (ex is SqlException or InvalidOperationException or TimeoutException)
-        {
-            ShowError?.Invoke($"Could not read file list: {ex.Message}");
-        }
-    }
 
     private RestoreRequest BuildRequest(bool executeImmediately) => new()
     {
@@ -615,8 +601,17 @@ public partial class MainWindowViewModel : ViewModelBase
 
             if (!string.IsNullOrWhiteSpace(BackupPathLog) && IsLogShippingMode)
             {
-                _logShippingSession = new LogShippingSession(
-                    (DatabaseRestoreEngine)_engine, request, SelectedPointInTimeUtc ?? DateTime.UtcNow);
+                // Seed "last applied" with the finish time of the newest backup the restore just used
+                // (server time, like the backup headers) - not "now", which would skip or repeat logs.
+                var chain = Chain ?? await DiscoverTimelineAsync();
+                var plan = BackupRestorePlanner.Plan(BackupChainAnalyzer.Analyze(chain), SelectedPointInTimeUtc);
+                var lastApplied = plan.Steps.Count > 0
+                    ? plan.Steps.Max(step => step.BackupFinishDate)
+                    : chain.LatestPossiblePointInTime ?? DateTime.Now;
+
+                _logShippingSession = new LogShippingSession((DatabaseRestoreEngine)_engine, request, lastApplied);
+                LogShippingStatus = $"Initial restore done. Last applied log backup finished {lastApplied:yyyy-MM-dd HH:mm:ss}.";
+                UpdatePolling();
             }
         }
         catch (Exception ex) when (ex is SqlException or InvalidOperationException or TimeoutException)
@@ -638,10 +633,52 @@ public partial class MainWindowViewModel : ViewModelBase
             return;
         }
 
+        IReadOnlyList<BackupFileEntry> newLogs;
+        if (!await _logShipGate.WaitAsync(0))
+        {
+            ShowError?.Invoke("A log backup is being checked or applied right now - try again in a moment.");
+            return;
+        }
+
         try
         {
-            var newLogs = await _logShippingSession.CheckForNewLogsAsync(_activeConnection);
-            foreach (var log in newLogs)
+            newLogs = await _logShippingSession.CheckForNewLogsAsync(_activeConnection);
+        }
+        catch (Exception ex) when (ex is SqlException or InvalidOperationException or TimeoutException)
+        {
+            ShowError?.Invoke($"Could not check for new log backups: {ex.Message}");
+            return;
+        }
+        finally
+        {
+            _logShipGate.Release();
+        }
+
+        LogShippingStatus = $"Last check {DateTime.Now:HH:mm:ss}: " +
+                            (newLogs.Count == 0 ? "no new log backups." : $"{newLogs.Count} new log backup(s) found.");
+        await ProcessNewLogsAsync(newLogs);
+    }
+
+    /// <summary>
+    /// Prompts for, then applies, each new log in order. Stops at the first one the DBA skips (applying a
+    /// later log without it would break the chain) or that fails. Returns false when polling should stop.
+    /// </summary>
+    private async Task<bool> ProcessNewLogsAsync(IReadOnlyList<BackupFileEntry> logs)
+    {
+        if (_logShippingSession is null || _activeConnection is null)
+        {
+            return false;
+        }
+
+        if (!await _logShipGate.WaitAsync(0))
+        {
+            return true; // something else is using the session; the next poll retries
+        }
+
+        var keepGoing = true;
+        try
+        {
+            foreach (var log in logs)
             {
                 var vm = new NewLogFoundDialogViewModel
                 {
@@ -653,7 +690,9 @@ public partial class MainWindowViewModel : ViewModelBase
                 var apply = ShowNewLogFoundDialog is not null && await ShowNewLogFoundDialog(vm);
                 if (!apply)
                 {
-                    continue;
+                    LogShippingStatus = $"Paused: {Path.GetFileName(log.FilePath)} was not applied. Use \"Check for new log backups\" to continue.";
+                    keepGoing = false;
+                    break;
                 }
 
                 var progress = new Progress<RestoreProgressEvent>(e =>
@@ -666,12 +705,82 @@ public partial class MainWindowViewModel : ViewModelBase
                 });
 
                 await _logShippingSession.ApplyLogAsync(_activeConnection, log, progress);
+                LogShippingStatus = $"Applied {Path.GetFileName(log.FilePath)} (finished {log.BackupFinishDate:yyyy-MM-dd HH:mm:ss}).";
             }
         }
         catch (Exception ex) when (ex is SqlException or InvalidOperationException or TimeoutException)
         {
-            ShowError?.Invoke($"Could not check/apply new log backups: {ex.Message}");
+            LogShippingStatus = $"Stopped: {ex.Message}";
+            ShowError?.Invoke($"Could not apply the new log backup: {ex.Message}");
+            keepGoing = false;
         }
+        finally
+        {
+            _logShipGate.Release();
+        }
+
+        if (!keepGoing && IsAutoPolling)
+        {
+            IsAutoPolling = false; // keep the checkbox honest; the monitor has already been told to stop
+        }
+
+        return keepGoing;
+    }
+
+    /// <summary>(Re)starts or stops the timer according to <see cref="IsAutoPolling"/> and the session state.</summary>
+    private void UpdatePolling()
+    {
+        _logShippingMonitor?.Stop();
+        _logShippingMonitor = null;
+
+        if (!IsAutoPolling)
+        {
+            return;
+        }
+
+        if (_logShippingSession is null)
+        {
+            LogShippingStatus = "Auto-check is on; it starts after the initial log-shipping restore.";
+            return;
+        }
+
+        var seconds = (int)Math.Clamp(PollIntervalSeconds ?? 60, 10, 3600);
+
+        _logShippingMonitor = new LogShippingMonitor(
+            check: async ct =>
+            {
+                // Share the single connection safely: never poll while a restore/discovery is running or a
+                // log is being applied.
+                if (IsBusy || _logShippingSession is null || _activeConnection is null || !await _logShipGate.WaitAsync(0, ct))
+                {
+                    return [];
+                }
+
+                try
+                {
+                    return await _logShippingSession.CheckForNewLogsAsync(_activeConnection, ct);
+                }
+                finally
+                {
+                    _logShipGate.Release();
+                }
+            },
+            onNewLogs: logs => Avalonia.Threading.Dispatcher.UIThread.InvokeAsync(() => ProcessNewLogsAsync(logs)),
+            onError: ex => Avalonia.Threading.Dispatcher.UIThread.Post(() =>
+            {
+                LogShippingStatus = $"Auto-check stopped: {ex.Message}";
+                IsAutoPolling = false;
+            }),
+            onChecked: (time, count) => Avalonia.Threading.Dispatcher.UIThread.Post(() =>
+            {
+                if (count == 0 && _logShippingMonitor is not null)
+                {
+                    LogShippingStatus = $"Watching every {seconds}s. Last check {time:HH:mm:ss}: no new log backups.";
+                }
+            }));
+
+        _logShippingMonitor.Start(TimeSpan.FromSeconds(seconds));
+        LogShippingStatus = $"Watching for new log backups every {seconds}s...";
     }
 
     [RelayCommand]
@@ -681,6 +790,14 @@ public partial class MainWindowViewModel : ViewModelBase
         {
             return;
         }
+
+        if (!await _logShipGate.WaitAsync(0))
+        {
+            ShowError?.Invoke("A log backup is being applied right now - finalize once it has finished.");
+            return;
+        }
+
+        _logShippingMonitor?.Stop();
 
         try
         {
@@ -692,7 +809,13 @@ public partial class MainWindowViewModel : ViewModelBase
             ShowError?.Invoke($"Could not finalize the log-shipping restore: {ex.Message}");
             return;
         }
+        finally
+        {
+            _logShipGate.Release();
+        }
 
         _logShippingSession = null;
+        IsAutoPolling = false;
+        LogShippingStatus = "Finalized: the database is online (WITH RECOVERY).";
     }
 }

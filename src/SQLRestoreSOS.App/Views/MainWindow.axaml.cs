@@ -45,12 +45,6 @@ public partial class MainWindow : Window
             return await dialog.ShowDialog<bool>(this);
         };
 
-        vm.ShowFileListDialog = async fileVm =>
-        {
-            var dialog = new FileListPreviewDialog(fileVm);
-            await dialog.ShowDialog(this);
-        };
-
         vm.ShowBackupTimelineDialog = async timelineVm =>
         {
             var dialog = new BackupTimelineDialog(timelineVm);

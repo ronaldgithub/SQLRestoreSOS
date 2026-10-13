@@ -48,7 +48,7 @@
             <Button Content="Cancel" Command="{Binding CloseCommand}" />
         </StackPanel>
 
-        <Grid DockPanel.Dock="Top" ColumnDefinitions="32,36,100,150,150,150,150,2*,2*,1.5*" Margin="0,0,0,4">
+        <Grid DockPanel.Dock="Top" ColumnDefinitions="32,36,100,150,150,150,150,2*,2*" Margin="0,0,0,4">
             <TextBlock Grid.Column="1" Text="#" FontWeight="Bold" />
             <TextBlock Grid.Column="2" Text="Type" FontWeight="Bold" />
             <TextBlock Grid.Column="3" Text="Started" FontWeight="Bold" />
@@ -61,14 +61,13 @@
                 <TextBlock Grid.Column="2" Text="{Binding AxisEndText}" FontSize="11" Opacity="0.7" />
             </Grid>
             <TextBlock Grid.Column="8" Text="File" FontWeight="Bold" />
-            <TextBlock Grid.Column="9" Text="Note" FontWeight="Bold" />
         </Grid>
 
         <ScrollViewer>
             <ItemsControl ItemsSource="{Binding Rows}">
                 <ItemsControl.ItemTemplate>
                     <DataTemplate x:DataType="vm:BackupTimelineRowViewModel">
-                        <Grid ColumnDefinitions="32,36,100,150,150,150,150,2*,2*,1.5*" Margin="0,3"
+                        <Grid ColumnDefinitions="32,36,100,150,150,150,150,2*,2*" Margin="0,3"
                               Opacity="{Binding RowOpacity}">
                             <TextBlock Grid.Column="0" Text="{Binding StatusGlyph}" Foreground="{Binding StatusBrush}"
                                        FontSize="16" FontWeight="Bold" VerticalAlignment="Center"
@@ -94,8 +93,6 @@
 
                             <TextBlock Grid.Column="8" Text="{Binding FileName}" TextTrimming="CharacterEllipsis"
                                        VerticalAlignment="Center" ToolTip.Tip="{Binding FullPath}" />
-                            <TextBlock Grid.Column="9" Text="{Binding Note}" TextTrimming="CharacterEllipsis"
-                                       VerticalAlignment="Center" Opacity="0.8" ToolTip.Tip="{Binding Note}" />
                         </Grid>
                     </DataTemplate>
                 </ItemsControl.ItemTemplate>

@@ -111,8 +111,8 @@ not by pasting from the local reference copy.
 Connect (`ConnectDialog` → `SqlConnectionService.TestConnectionAsync`) → `MainWindowViewModel`
 holds the open connection, checks the selected engine is actually installed
 (`CheckEngineAvailabilityAsync`), loads `sys.databases` → DBA picks a database and backup folders →
-`DiscoverChainCommand` populates `BackupChainTimeline` (and `PreviewFilesCommand` can run `RESTORE
-FILELISTONLY` on any discovered file) → every relevant field change calls `RefreshPreview()`, which
+`ChoosePointInTimeCommand` (the "Choose on timeline..." button) discovers the chain, populates
+`BackupChainTimeline` and opens the timeline dialog (point-in-time slider, chain status, refresh) → every relevant field change calls `RefreshPreview()`, which
 calls `engine.GetDefaultParameters` + `engine.BuildScript` to regenerate `SqlPreviewText` and rebuild
 the Advanced tab's rows → `RunRestoreCommand` builds the real `RestoreRequest`
 (`ExecuteImmediately=true`), gates destructive `ExistingDatabaseAction` values behind
@@ -162,13 +162,17 @@ dotnet test tests\SQLRestoreSOS.Core.Tests\SQLRestoreSOS.Core.Tests.csproj
 - [x] Avalonia shell: dark theme, Connect/About/engine-switch toolbar, Basic tab (database, backup
       folders, chain timeline, point-in-time, existing-db-action, move-files, log-shipping toggle),
       data-driven Advanced tab, SQL preview pane with copy-to-clipboard, live progress log + percent
-      bar, destructive-action confirmation dialog, new-log-found dialog, file-list preview dialog.
+      bar, destructive-action confirmation dialog, new-log-found dialog, backup-chain timeline dialog. (The per-file "Preview files" dialog was
+      removed on request; `BackupFileInspector` remains in Core.)
 - [x] App icon (`Assets/app.ico` — a life-ring/rescue-buoy mark, matching the "SOS" theme).
 - [ ] Release packaging (self-contained single-file win-x64 publish profile) — deferred milestone,
       not needed for day-to-day development; add under
       `src\SQLRestoreSOS.App\Properties\PublishProfiles\` when that's actually wanted.
-- [ ] Background/automatic polling for new log backups in log-shipping mode (`CheckForNewLogsCommand`
-      is manual/button-triggered today, not a timer).
+- [x] Automatic polling for new log backups in log-shipping mode: `Core/Restore/LogShippingMonitor.cs`
+      (PeriodicTimer, delegate-based so it is unit-tested without SQL Server) driven from
+      `MainWindowViewModel.UpdatePolling`. It only *detects*; each log is still confirmed in
+      `NewLogFoundDialog`. All session SQL goes through `_logShipGate` because there is one shared
+      connection. A skipped or failed log stops polling (a later log can't be applied without it).
 
 ## Explicit non-goals (for now)
 
