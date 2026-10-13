@@ -51,6 +51,12 @@ public partial class MainWindow : Window
             await dialog.ShowDialog(this);
         };
 
+        vm.ShowBackupTimelineDialog = async timelineVm =>
+        {
+            var dialog = new BackupTimelineDialog(timelineVm);
+            await dialog.ShowDialog(this);
+        };
+
         vm.ShowError = async message =>
         {
             var dialog = new Window

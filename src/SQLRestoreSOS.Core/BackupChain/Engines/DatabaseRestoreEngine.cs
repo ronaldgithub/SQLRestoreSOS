@@ -331,7 +331,9 @@ public sealed class DatabaseRestoreEngine : IRestoreEngine
                 backupStartDate: Convert.ToDateTime(reader["BackupStartDate"]),
                 backupFinishDate: Convert.ToDateTime(reader["BackupFinishDate"]),
                 firstLsn: Convert.ToDecimal(reader["FirstLSN"]),
-                lastLsn: Convert.ToDecimal(reader["LastLSN"]));
+                lastLsn: Convert.ToDecimal(reader["LastLSN"]),
+                databaseBackupLsn: ReadOptionalDecimal(reader, "DatabaseBackupLSN"),
+                checkpointLsn: ReadOptionalDecimal(reader, "CheckpointLSN"));
         }
         catch (SqlException)
         {
@@ -348,7 +350,9 @@ public sealed class DatabaseRestoreEngine : IRestoreEngine
         DateTime backupStartDate,
         DateTime backupFinishDate,
         decimal firstLsn,
-        decimal lastLsn)
+        decimal lastLsn,
+        decimal? databaseBackupLsn = null,
+        decimal? checkpointLsn = null)
     {
         // RESTORE HEADERONLY's BackupType: 1 = Database (Full), 2 = Transaction Log, 5 = Differential database.
         // Other values (file, partial, differential-file/partial backups) are out of scope for this app.
@@ -360,7 +364,22 @@ public sealed class DatabaseRestoreEngine : IRestoreEngine
             _ => null
         };
 
-        return mapped is null ? null : new BackupFileEntry(filePath, mapped.Value, backupStartDate, backupFinishDate, firstLsn, lastLsn);
+        return mapped is null
+            ? null
+            : new BackupFileEntry(filePath, mapped.Value, backupStartDate, backupFinishDate, firstLsn, lastLsn, databaseBackupLsn, checkpointLsn);
+    }
+
+    private static decimal? ReadOptionalDecimal(SqlDataReader reader, string column)
+    {
+        try
+        {
+            var ordinal = reader.GetOrdinal(column);
+            return reader.IsDBNull(ordinal) ? null : Convert.ToDecimal(reader.GetValue(ordinal));
+        }
+        catch (IndexOutOfRangeException)
+        {
+            return null;
+        }
     }
 
     private IDisposable? StartPercentCompletePoller(IProgress<RestoreProgressEvent>? progress, CancellationToken ct)

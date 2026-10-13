@@ -1,0 +1,105 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:vm="using:SQLRestoreSOS.App.ViewModels"
+        mc:Ignorable="d"
+        xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+        x:Class="SQLRestoreSOS.App.Views.BackupTimelineDialog"
+        x:DataType="vm:BackupTimelineDialogViewModel"
+        Width="1300" Height="680" MinWidth="900" MinHeight="420"
+        WindowStartupLocation="CenterOwner"
+        Title="Backup chain timeline">
+
+    <DockPanel Margin="16">
+        <StackPanel DockPanel.Dock="Top" Spacing="2" Margin="0,0,0,10">
+            <TextBlock Text="{Binding DatabaseName, StringFormat='Backup chain for {0}'}" FontSize="16" FontWeight="Bold" />
+            <TextBlock Text="{Binding Summary}" />
+            <TextBlock TextWrapping="Wrap" Opacity="0.7"
+                       Text="✓ = header readable and linked into a continuous chain (LSN check, not RESTORE VERIFYONLY).  ✗ = broken link.  – = older than the earliest full.  STOPAT from/to = window a point in time can fall into when that log is applied last (server time).  Numbers in # = the order the files are applied for the chosen point in time; dimmed files are not used." />
+        </StackPanel>
+
+        <!-- Point-in-time chooser -->
+        <Border DockPanel.Dock="Top" Padding="12" Margin="0,0,0,10" CornerRadius="4" Background="#18FFFFFF">
+            <StackPanel Spacing="6">
+                <TextBlock Text="Restore up to (point in time, server time)" FontWeight="Bold" />
+                <Grid ColumnDefinitions="Auto,*,Auto" ColumnSpacing="10">
+                    <TextBlock Grid.Column="0" Text="{Binding SliderStartText}" VerticalAlignment="Center" Opacity="0.7" />
+                    <Slider Grid.Column="1" Minimum="0" Maximum="{Binding SliderMaximum}"
+                            Value="{Binding SelectedSeconds}"
+                            TickFrequency="1" IsSnapToTickEnabled="True" />
+                    <TextBlock Grid.Column="2" Text="{Binding SliderEndText}" VerticalAlignment="Center" Opacity="0.7" />
+                </Grid>
+                <StackPanel Orientation="Horizontal" Spacing="8">
+                    <TextBlock Text="Exact time:" VerticalAlignment="Center" />
+                    <TextBox Text="{Binding TargetText}" Width="190" PlaceholderText="yyyy-MM-dd HH:mm:ss" />
+                    <TextBlock Text="{Binding PlanSummary}" VerticalAlignment="Center" TextWrapping="Wrap" />
+                </StackPanel>
+                <TextBlock Text="{Binding Problem}" Foreground="OrangeRed"
+                           IsVisible="{Binding Problem, Converter={x:Static ObjectConverters.IsNotNull}}" />
+            </StackPanel>
+        </Border>
+
+        <StackPanel DockPanel.Dock="Bottom" Orientation="Horizontal" Spacing="8"
+                    HorizontalAlignment="Right" Margin="0,10,0,0">
+            <TextBlock Text="{Binding RefreshStatus}" VerticalAlignment="Center" Opacity="0.7" Margin="0,0,8,0" />
+            <Button Content="Refresh (new backups)" Command="{Binding RefreshCommand}"
+                    IsVisible="{Binding CanRefresh}" />
+            <Button Content="Use this point in time" Command="{Binding UsePointInTimeCommand}" />
+            <Button Content="Restore to latest (no STOPAT)" Command="{Binding UseLatestCommand}" />
+            <Button Content="Cancel" Command="{Binding CloseCommand}" />
+        </StackPanel>
+
+        <Grid DockPanel.Dock="Top" ColumnDefinitions="32,36,100,150,150,150,150,2*,2*,1.5*" Margin="0,0,0,4">
+            <TextBlock Grid.Column="1" Text="#" FontWeight="Bold" />
+            <TextBlock Grid.Column="2" Text="Type" FontWeight="Bold" />
+            <TextBlock Grid.Column="3" Text="Started" FontWeight="Bold" />
+            <TextBlock Grid.Column="4" Text="Finished" FontWeight="Bold" />
+            <TextBlock Grid.Column="5" Text="STOPAT from" FontWeight="Bold" />
+            <TextBlock Grid.Column="6" Text="STOPAT to" FontWeight="Bold" />
+            <Grid Grid.Column="7" ColumnDefinitions="Auto,*,Auto" Margin="0,0,12,0">
+                <TextBlock Grid.Column="0" Text="{Binding AxisStartText}" FontSize="11" Opacity="0.7" />
+                <TextBlock Grid.Column="1" Text="Timeline" FontWeight="Bold" HorizontalAlignment="Center" />
+                <TextBlock Grid.Column="2" Text="{Binding AxisEndText}" FontSize="11" Opacity="0.7" />
+            </Grid>
+            <TextBlock Grid.Column="8" Text="File" FontWeight="Bold" />
+            <TextBlock Grid.Column="9" Text="Note" FontWeight="Bold" />
+        </Grid>
+
+        <ScrollViewer>
+            <ItemsControl ItemsSource="{Binding Rows}">
+                <ItemsControl.ItemTemplate>
+                    <DataTemplate x:DataType="vm:BackupTimelineRowViewModel">
+                        <Grid ColumnDefinitions="32,36,100,150,150,150,150,2*,2*,1.5*" Margin="0,3"
+                              Opacity="{Binding RowOpacity}">
+                            <TextBlock Grid.Column="0" Text="{Binding StatusGlyph}" Foreground="{Binding StatusBrush}"
+                                       FontSize="16" FontWeight="Bold" VerticalAlignment="Center"
+                                       ToolTip.Tip="{Binding Note}" />
+                            <TextBlock Grid.Column="1" Text="{Binding StepLabel}" FontWeight="Bold" VerticalAlignment="Center" />
+                            <TextBlock Grid.Column="2" Text="{Binding TypeLabel}" VerticalAlignment="Center" />
+                            <TextBlock Grid.Column="3" Text="{Binding Start}" VerticalAlignment="Center" />
+                            <TextBlock Grid.Column="4" Text="{Binding Finish}" VerticalAlignment="Center" />
+                            <TextBlock Grid.Column="5" Text="{Binding StopAtFrom}" VerticalAlignment="Center" />
+                            <TextBlock Grid.Column="6" Text="{Binding StopAtTo}" VerticalAlignment="Center" />
+
+                            <Border Grid.Column="7" Margin="0,0,12,0" Height="14" VerticalAlignment="Center"
+                                    Background="#22FFFFFF" CornerRadius="2">
+                                <Grid>
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="{Binding Offset}" />
+                                        <ColumnDefinition Width="{Binding Bar}" />
+                                        <ColumnDefinition Width="{Binding Remainder}" />
+                                    </Grid.ColumnDefinitions>
+                                    <Border Grid.Column="1" Background="{Binding BarBrush}" CornerRadius="2" MinWidth="3" />
+                                </Grid>
+                            </Border>
+
+                            <TextBlock Grid.Column="8" Text="{Binding FileName}" TextTrimming="CharacterEllipsis"
+                                       VerticalAlignment="Center" ToolTip.Tip="{Binding FullPath}" />
+                            <TextBlock Grid.Column="9" Text="{Binding Note}" TextTrimming="CharacterEllipsis"
+                                       VerticalAlignment="Center" Opacity="0.8" ToolTip.Tip="{Binding Note}" />
+                        </Grid>
+                    </DataTemplate>
+                </ItemsControl.ItemTemplate>
+            </ItemsControl>
+        </ScrollViewer>
+    </DockPanel>
+</Window>

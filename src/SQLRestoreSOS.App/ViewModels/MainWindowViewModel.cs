@@ -122,6 +122,7 @@ public partial class MainWindowViewModel : ViewModelBase
     public Func<RestoreConfirmationDialogViewModel, Task<bool>>? ShowConfirmationDialog { get; set; }
     public Func<NewLogFoundDialogViewModel, Task<bool>>? ShowNewLogFoundDialog { get; set; }
     public Func<FileListPreviewDialogViewModel, Task>? ShowFileListDialog { get; set; }
+    public Func<BackupTimelineDialogViewModel, Task>? ShowBackupTimelineDialog { get; set; }
     public Action<string>? ShowError { get; set; }
 
     public MainWindowViewModel()
@@ -189,7 +190,11 @@ public partial class MainWindowViewModel : ViewModelBase
         OnPropertyChanged(nameof(MappedDriveWarning));
         RefreshPreview();
     }
-    partial void OnSelectedPointInTimeUtcChanged(DateTime? value) => RefreshPreview();
+    partial void OnSelectedPointInTimeUtcChanged(DateTime? value)
+    {
+        OnPropertyChanged(nameof(PointInTimeDisplay));
+        RefreshPreview();
+    }
     partial void OnSelectedExistingDbActionChanged(ExistingDbActionOption value) => RefreshPreview();
     partial void OnRunCheckDbAfterRestoreChanged(bool value) => RefreshPreview();
     partial void OnMoveFilesChanged(bool value) => RefreshPreview();
@@ -348,15 +353,11 @@ public partial class MainWindowViewModel : ViewModelBase
         IsBusy = true;
         try
         {
-            var query = new BackupChainQuery(
-                SelectedDatabase.Name,
-                BackupPathFull,
-                string.IsNullOrWhiteSpace(BackupPathDiff) ? null : BackupPathDiff,
-                string.IsNullOrWhiteSpace(BackupPathLog) ? null : BackupPathLog);
-
             // Point in time stays blank unless the user fills it in: blank = restore to latest,
             // and no STOPAT is emitted into the generated script.
-            Chain = await _engine!.DiscoverBackupChainAsync(_activeConnection, query);
+            Chain = await DiscoverTimelineAsync();
+            IsBusy = false;
+            await ShowTimelineAsync();
         }
         catch (Exception ex) when (ex is SqlException or InvalidOperationException or TimeoutException)
         {
@@ -367,6 +368,65 @@ public partial class MainWindowViewModel : ViewModelBase
             IsBusy = false;
         }
     }
+
+    private async Task<BackupChainTimeline> DiscoverTimelineAsync()
+    {
+        var query = new BackupChainQuery(
+            SelectedDatabase!.Name,
+            BackupPathFull,
+            string.IsNullOrWhiteSpace(BackupPathDiff) ? null : BackupPathDiff,
+            string.IsNullOrWhiteSpace(BackupPathLog) ? null : BackupPathLog);
+
+        return await _engine!.DiscoverBackupChainAsync(_activeConnection!, query);
+    }
+
+    /// <summary>The timeline dialog's Refresh button: re-scan the folders; null (after an error message) on failure.</summary>
+    private async Task<BackupChainTimeline?> RefreshChainAsync()
+    {
+        if (_activeConnection is null || SelectedDatabase is null)
+        {
+            return null;
+        }
+
+        try
+        {
+            Chain = await DiscoverTimelineAsync();
+            return Chain;
+        }
+        catch (Exception ex) when (ex is SqlException or InvalidOperationException or TimeoutException)
+        {
+            ShowError?.Invoke($"Could not read backup chain: {ex.Message}");
+            return null;
+        }
+    }
+
+    /// <summary>Re-opens the timeline dialog on the already-discovered chain to (re)choose the point in time.</summary>
+    [RelayCommand]
+    private Task ChoosePointInTimeAsync() => ShowTimelineAsync();
+
+    [RelayCommand]
+    private void ClearPointInTime() => SelectedPointInTimeUtc = null;
+
+    private async Task ShowTimelineAsync()
+    {
+        if (Chain is null || Chain.Entries.Count == 0 || SelectedDatabase is null || ShowBackupTimelineDialog is null)
+        {
+            return;
+        }
+
+        var dialogVm = new BackupTimelineDialogViewModel(SelectedDatabase.Name, Chain, SelectedPointInTimeUtc, RefreshChainAsync);
+        await ShowBackupTimelineDialog(dialogVm);
+
+        if (dialogVm.Applied)
+        {
+            SelectedPointInTimeUtc = dialogVm.SelectedPointInTime;
+        }
+    }
+
+    /// <summary>Exact point in time shown on the Basic tab (the DatePicker could not show a time of day).</summary>
+    public string PointInTimeDisplay => SelectedPointInTimeUtc is { } p
+        ? p.ToString("yyyy-MM-dd HH:mm:ss")
+        : "Latest available (no STOPAT)";
 
     [RelayCommand]
     private async Task PreviewFilesAsync(string? backupFilePath)
