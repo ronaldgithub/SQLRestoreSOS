@@ -2,9 +2,30 @@
 
 A .NET 8 / Avalonia (dark mode) desktop tool for **Junior DBAs handling a disaster-recovery incident** — "SOS" as in call 911/112. It walks you through a point-in-time SQL Server restore by clicking through a backup chain instead of hand-typing a long stored-procedure parameter list, shows you the exact T-SQL it's about to run (copy/paste ready), and can execute the restore directly with live progress.
 
+## Download
+
+Grab `SQLRestoreSOS-v1.0.0-win-x64.zip` from the [Releases](https://github.com/ronaldgithub/SQLRestoreSOS/releases) page, unzip, and run
+`SQLRestoreSOS.exe`. It is self-contained (no .NET install needed) and Windows-only. The zip also holds
+`scripts\sp_DatabaseRestore.sql`, which you install on the SQL Server once (see Prerequisites).
+
+## What it does
+
+- **Full restore** — pick a database and a backup root; Full / Diff / Log folders are derived for you and
+  the generated `EXEC sp_DatabaseRestore ...` call is shown before anything runs. **Dry Run (-WhatIf)**
+  resolves the real `RESTORE DATABASE` / `RESTORE LOG` statements without executing them.
+- **Point in time (STOPAT)** — *Choose on timeline...* opens a dialog with every backup in the order it was
+  made, a green check per restorable file, the STOPAT window of each log, and a slider that numbers the
+  files a restore to that moment will apply.
+- **Log shipping** — stay in `NORECOVERY`, let the app watch the log folder every N seconds, confirm each
+  new log, then *Finalize (bring online)*.
+- **Advanced** tab — every parameter of the procedure, grouped, with live T-SQL.
+- Destructive actions (kill connections / take offline / drop) always need an explicit confirmation.
+
+Walkthrough with screenshots: **[A junior dev dropped a table. Now the junior DBA has to fix it.](https://dbaronald.nl/sqlrestoresos-for-junior-dbas/)**
+
 ## Which restore engine is better?
 
-SQLRestoreSOS can drive the restore through either of two well-known community stored procedures. They solve the same problem differently, so the app lets you pick (Settings → Restore Engine), but **`sp_DatabaseRestore` is the default and the only one bundled with this repo.**
+SQLRestoreSOS can drive the restore through either of two well-known community stored procedures. They solve the same problem differently, so the app lets you pick (the **Engine** menu in the toolbar), but **`sp_DatabaseRestore` is the default and the only one bundled with this repo.**
 
 | | `sp_DatabaseRestore` (default) | `sp_RestoreGene` (optional) |
 |---|---|---|
@@ -37,18 +58,26 @@ SQLRestoreSOS can drive the restore through either of two well-known community s
 dotnet build SQLRestoreSOS.sln
 dotnet test tests\SQLRestoreSOS.Core.Tests
 dotnet run --project src\SQLRestoreSOS.App
+dotnet publish src\SQLRestoreSOS.App -p:PublishProfile=win-x64 -o publish   # release build
 ```
+
+Close a running instance before `dotnet build`; the running app locks its DLLs.
 
 ## Basic usage
 
 1. **Connect** — server name, Windows or SQL login auth.
-2. Pick the database to restore.
-3. Enter the **backup root** share once (e.g. `\\192.168.178.15\SQLBackup`) — the Full/Diff/Log
+2. Pick the database to restore. The target name defaults to `<name>_<timestamp>` so the restore lands
+   *next to* the original.
+3. Enter the **backup root** share once (e.g. `\\fileserver\SQLBackup`) — the Full/Diff/Log
    folders are then derived automatically as `<root>\<server>\<database>\{FULL|DIFF|LOG}\`, which is
    the default folder layout [Ola Hallengren's Maintenance Solution](https://ola.hallengren.com/)
    backup jobs produce. Edit the three fields by hand if your backups don't follow that layout.
-4. Drag the point-in-time marker on the backup chain timeline (or leave it at "latest").
-5. Review the generated T-SQL in the preview pane — copy it, or click **Run Restore** to execute it directly with a live progress log.
+4. Leave *Point in time* at "Latest available", or click **Choose on timeline...**, drag the slider (or
+   type a time) and click **Use this point in time**. The numbered files are the ones that will be applied.
+5. Review the generated T-SQL (**Dry Run** shows the real statements) — copy it, or click **Run Restore**
+   (pinned at the bottom) to execute it directly with the live restore log.
+6. *Log shipping:* tick **Log shipping mode**, run the initial restore, then use **Auto-check every N
+   seconds** (or **Check for new log backups**). You confirm each log; **Finalize** brings the database online.
 
 ## License
 

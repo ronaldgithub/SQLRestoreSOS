@@ -28,14 +28,21 @@ src/
   SQLRestoreSOS.Core/           # net8.0 class library — no Avalonia/UI reference, fully unit-testable
     Connections/                # ConnectionProfile, SqlAuthMode, SqlConnectionService
     Databases/                  # DatabaseInfo, DatabaseCatalogService (sys.databases)
-    BackupChain/                # BackupFileEntry/Timeline, BackupFileInspector (RESTORE FILELISTONLY)
+    BackupChain/                # BackupFileEntry/Timeline, BackupChainAnalyzer, BackupRestorePlanner,
+                                 # BackupFileInspector (RESTORE FILELISTONLY; no UI uses it right now)
       Engines/                  # IRestoreEngine, DatabaseRestoreEngine, RestoreGeneEngine
     Restore/                    # RestoreRequest, RestoreParameterSet, RestoreScriptBuilder,
-                                 # RestoreExecutionService, LogShippingSession
+                                 # ResolvedStatementFormatter, RestoreExecutionService,
+                                 # LogShippingSession, LogShippingMonitor
     Settings/                   # AppSettings, SettingsService (%AppData%\SQLRestoreSOS\settings.json)
   SQLRestoreSOS.App/             # net8.0 Avalonia app (Views/ViewModels)
+    Properties/PublishProfiles/win-x64.pubxml   # self-contained single-file release build
 tests/
   SQLRestoreSOS.Core.Tests/      # xUnit, targets Core only
+docs/blog/                       # blog post source (HTML, images referenced from pictures/)
+tools/wordpress/publish_post.py  # pushes the post to WordPress (REST API; asks for the Application Password,
+                                 # draft by default, --publish to go live)
+pictures/                        # blog/README screenshots (blog_*.png)
 ```
 
 ## Key classes and where logic lives
@@ -66,12 +73,34 @@ valuable unit-test target in the app — see `RestoreScriptBuilderTests`.
   name is assumed — the exact result shape wasn't fully read from the source file), then either
   reports that text as a preview or splits it on `GO` and executes each batch itself.
 
+**`Core/BackupChain/BackupChainAnalyzer.cs` / `BackupRestorePlanner.cs`** — pure, offline, the logic
+behind the timeline dialog. `Analyze` marks each backup `Restorable` (green check), `NotApplicable` or
+`Broken` by LSN continuity (a diff needs its base full via `DatabaseBackupLsn == CheckpointLsn`; a log
+must overlap the chain end) and gives each linked log a STOPAT window (previous backup's finish → its own
+finish). It is a header/LSN check, **not** `RESTORE VERIFYONLY`. `Plan(rows, target)` returns the files a
+restore to `target` applies, in order: latest full that finished by then, latest matching diff, then logs
+up to and including the one covering the target. A log counts as "after the diff" if its LastLsn is >= the
+diff's **or** it finished after it — on an idle database a log taken right after a diff can end at the
+diff's own LSN, and `sp_DatabaseRestore` still applies it. A STOPAT at/before a full's finish fails with
+Msg 4335, which is why the slider starts one second after the earliest full finished.
+
+**`App/ViewModels/BackupTimelineDialogViewModel.cs`** — the "Choose on timeline..." dialog: grid in
+finish order with a proportional timeline bar, a seconds-resolution slider + exact-time box, numbered
+(applied) vs dimmed rows via `BackupRestorePlanner`, **Refresh** (rescans through a delegate from
+`MainWindowViewModel`, keeps the chosen time), and **Use this point in time** / **Restore to latest**.
+The Basic tab no longer has a date picker or an inline chain list; `SelectedPointInTimeUtc` stays null
+(= no `@StopAt`) until the dialog sets it.
+
+**`Core/Restore/LogShippingMonitor.cs`** — delegate-based `PeriodicTimer` poller; it only *detects* new
+logs and hands them to the UI, which still asks before each one. A skipped or failed log stops it.
+
 **`Core/Restore/LogShippingSession.cs`** — the "stay in NORECOVERY and keep applying new log
 backups" workflow (`RestoreRequest.KeepInNoRecoveryForLogShipping`), modeled directly on the
 `@ContinueLogs=1, @RunRecovery=0` → ... → `@RunRecovery=1` pattern shown in `sp_DatabaseRestore`'s
 own `@Help` examples. `CheckForNewLogsAsync` finds log backups newer than the last one applied;
 `ApplyLogAsync` restores one, staying in NORECOVERY; `RecoverNowAsync` finalizes (brings the
-database online) and ends the session.
+database online) and ends the session. It is seeded with the finish time of the newest backup the
+initial restore used (server time, from `BackupRestorePlanner`) — never `DateTime.UtcNow`.
 
 **`Core/Restore/RestoreRequest.cs` / `ExistingDatabaseAction.cs`** — `ExistingDatabaseAction` mirrors
 `@ExistingDBAction`'s tinyint (`DoNothing`/`KillConnections`/`TakeOffline`/`Drop`). Anything but
@@ -112,7 +141,8 @@ Connect (`ConnectDialog` → `SqlConnectionService.TestConnectionAsync`) → `Ma
 holds the open connection, checks the selected engine is actually installed
 (`CheckEngineAvailabilityAsync`), loads `sys.databases` → DBA picks a database and backup folders →
 `ChoosePointInTimeCommand` (the "Choose on timeline..." button) discovers the chain, populates
-`BackupChainTimeline` and opens the timeline dialog (point-in-time slider, chain status, refresh) → every relevant field change calls `RefreshPreview()`, which
+`BackupChainTimeline` and opens the timeline dialog (point-in-time slider, chain status,
+refresh) → every relevant field change calls `RefreshPreview()`, which
 calls `engine.GetDefaultParameters` + `engine.BuildScript` to regenerate `SqlPreviewText` and rebuild
 the Advanced tab's rows → `RunRestoreCommand` builds the real `RestoreRequest`
 (`ExecuteImmediately=true`), gates destructive `ExistingDatabaseAction` values behind
@@ -127,7 +157,14 @@ aborts a restore). If log-shipping mode was on, a `LogShippingSession` is create
 dotnet build SQLRestoreSOS.sln
 dotnet run --project src\SQLRestoreSOS.App
 dotnet test tests\SQLRestoreSOS.Core.Tests\SQLRestoreSOS.Core.Tests.csproj
+dotnet publish src\SQLRestoreSOS.App -p:PublishProfile=win-x64 -o <dir>   # self-contained single file (~50 MB)
 ```
+
+Close a running SQLRestoreSOS before `dotnet build`: the app locks its DLLs and the copy step fails
+(build to a separate `-o` folder to just compile-check).
+
+Releases: zip `SQLRestoreSOS.exe` + `scripts\sp_DatabaseRestore.sql` + `LICENSE` + `README.md`, tag `vX.Y.Z`,
+`gh release create`. `<Version>` in `SQLRestoreSOS.App.csproj` feeds the About dialog.
 
 ## Conventions
 
@@ -157,17 +194,18 @@ dotnet test tests\SQLRestoreSOS.Core.Tests\SQLRestoreSOS.Core.Tests.csproj
 ## Status
 
 - [x] Core: connection/catalog services, backup-chain + file-list discovery, script builder, both
-      engine adapters, settings, log-shipping session — unit tested (32 tests, no live SQL Server
-      needed for the testable slice).
+      engine adapters, settings, log-shipping session + monitor, chain analyzer/planner — unit tested
+      (74 tests, no live SQL Server needed for the testable slice).
 - [x] Avalonia shell: dark theme, Connect/About/engine-switch toolbar, Basic tab (database, backup
-      folders, chain timeline, point-in-time, existing-db-action, move-files, log-shipping toggle),
-      data-driven Advanced tab, SQL preview pane with copy-to-clipboard, live progress log + percent
-      bar, destructive-action confirmation dialog, new-log-found dialog, backup-chain timeline dialog. (The per-file "Preview files" dialog was
-      removed on request; `BackupFileInspector` remains in Core.)
+      folders, "Choose on timeline...", existing-db-action, move-files, log-shipping + auto-check),
+      pinned Run Restore, data-driven Advanced tab, resizable panes (Generated T-SQL / resolved
+      statements / restore log), Dry Run (-WhatIf), destructive-action confirmation dialog,
+      new-log-found dialog, backup-chain timeline dialog. Removed on request: the per-file "Preview
+      files" dialog, the inline chain list, the Discover button and the progress bar/percentage
+      (`BackupFileInspector` and `PercentComplete` remain in Core/the view model).
 - [x] App icon (`Assets/app.ico` — a life-ring/rescue-buoy mark, matching the "SOS" theme).
-- [ ] Release packaging (self-contained single-file win-x64 publish profile) — deferred milestone,
-      not needed for day-to-day development; add under
-      `src\SQLRestoreSOS.App\Properties\PublishProfiles\` when that's actually wanted.
+- [x] Release packaging: `win-x64.pubxml` (self-contained, single file, compressed, not trimmed).
+      v1.0.0 published on GitHub Releases as `SQLRestoreSOS-v1.0.0-win-x64.zip`.
 - [x] Automatic polling for new log backups in log-shipping mode: `Core/Restore/LogShippingMonitor.cs`
       (PeriodicTimer, delegate-based so it is unit-tested without SQL Server) driven from
       `MainWindowViewModel.UpdatePolling`. It only *detects*; each log is still confirmed in
@@ -180,3 +218,11 @@ dotnet test tests\SQLRestoreSOS.Core.Tests\SQLRestoreSOS.Core.Tests.csproj
   Windows-centric workflow here, and the UI assumes Windows-style paths).
 - Bundling or relicensing `sp_RestoreGene` — see the licensing guardrail above.
 - A light theme toggle.
+
+## Blog post
+
+`docs/blog/sqlrestoresos-for-junior-dbas.html` is the source of the post on dbaronald.nl (live:
+https://dbaronald.nl/sqlrestoresos-for-junior-dbas/). `tools/wordpress/publish_post.py` converts it and
+uploads the images through the WordPress REST API with an **Application Password that it asks for at
+run time** — never put it in a file, an environment variable you keep, or a chat. The WordPress login
+name is the account's login (here the e-mail address), not the Application Password's label.
